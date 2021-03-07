@@ -29,22 +29,17 @@ public class LogDNAAppender extends AbstractAppender {
     protected final String token;
     protected final boolean stackTrace;
     protected final boolean supportMdc;
-    /**
-     * If not using asynchronous logging you can enable this for non-blocking http requests.
-     */
-    protected final boolean async;
 
     protected final OkHttpClient client = new OkHttpClient();
     protected String httpUrl = "https://logs.logdna.com/logs/ingest";
 
-    protected LogDNAAppender(String name, Layout<? extends Serializable> layout, String hostname, String appName, String token, boolean stackTrace, boolean supportMdc, boolean async) {
+    protected LogDNAAppender(String name, Layout<? extends Serializable> layout, String hostname, String appName, String token, boolean stackTrace, boolean supportMdc) {
         super(name, null, layout, false, null);
         this.hostname = hostname;
         this.appName = appName;
         this.token = token;
         this.stackTrace = stackTrace;
         this.supportMdc = supportMdc;
-        this.async = async;
         this.client.setConnectTimeout(15, TimeUnit.SECONDS);
         this.client.setReadTimeout(15, TimeUnit.SECONDS);
     }
@@ -54,6 +49,15 @@ public class LogDNAAppender extends AbstractAppender {
         Layout<? extends Serializable> layout = this.getLayout();
         String message = new String(layout.toByteArray(logEvent));
 
+        JsonArray lines = new JsonArray();
+        lines.add(this.createLineEntry(message, logEvent));
+
+        JsonObject payload = new JsonObject();
+        payload.add("lines", lines);
+        this.sendHtmlRequest(payload.toString());
+    }
+
+    protected JsonObject createLineEntry(String message, LogEvent logEvent) {
         StringBuilder builder = new StringBuilder(message);
         if (logEvent.getThrownProxy() != null && this.stackTrace) {
             ThrowableProxy throwable = logEvent.getThrownProxy();
@@ -80,13 +84,7 @@ public class LogDNAAppender extends AbstractAppender {
             }
         }
         line.add("meta", meta);
-
-        JsonArray lines = new JsonArray();
-        lines.add(line);
-
-        JsonObject payload = new JsonObject();
-        payload.add("lines", lines);
-        this.sendHtmlRequest(payload.toString());
+        return line;
     }
 
     protected void sendHtmlRequest(String payload) {
@@ -99,14 +97,6 @@ public class LogDNAAppender extends AbstractAppender {
         builder.post(body);
 
         Request request = builder.build();
-        if (this.async) {
-            this.callAsync(request);
-        } else {
-            this.callSync(request);
-        }
-    }
-
-    private void callSync(Request request) {
         try {
             Response response = this.client.newCall(request).execute();
             response.body().close();
@@ -114,26 +104,6 @@ public class LogDNAAppender extends AbstractAppender {
             System.err.println("Failed to upload logs to LogDNA!");
             e.printStackTrace();
         }
-    }
-
-    private void callAsync(Request request) {
-        this.client.newCall(request).enqueue(new Callback() {
-            @Override
-            public void onFailure(Request request, IOException e) {
-                System.err.println("Failed to upload logs to LogDNA!");
-                e.printStackTrace();
-            }
-
-            @Override
-            public void onResponse(Response response) {
-                try {
-                    response.body().close();
-                } catch (IOException e) {
-                    System.err.println("Failed to close response body!");
-                    e.printStackTrace();
-                }
-            }
-        });
     }
 
     private String encode(String str){
