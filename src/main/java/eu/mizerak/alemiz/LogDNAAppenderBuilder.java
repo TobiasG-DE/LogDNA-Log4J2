@@ -10,7 +10,7 @@ import java.io.Serializable;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
-public class LogDNAAppenderBuilder implements Builder<LogDNAAppender> {
+public class LogDNAAppenderBuilder implements Builder<LogDNASimpleAppender> {
 
     @PluginBuilderAttribute
     private String name = "LogDNAAppender";
@@ -37,6 +37,9 @@ public class LogDNAAppenderBuilder implements Builder<LogDNAAppender> {
     @PluginBuilderAttribute
     @Required
     private boolean supportMdc;
+
+    @PluginBuilderAttribute
+    private String[] tags;
 
     @PluginBuilderAttribute
     private boolean async = false;
@@ -84,16 +87,21 @@ public class LogDNAAppenderBuilder implements Builder<LogDNAAppender> {
         return this;
     }
 
+    public LogDNAAppenderBuilder tags(String[] tags) {
+        this.tags = tags;
+        return this;
+    }
+
     public LogDNAAppenderBuilder async(boolean async) {
         this.async = async;
         return this;
     }
 
     @Override
-    public LogDNAAppender build() {
+    public LogDNASimpleAppender build() {
         if (this.async) {
-            return new LogDNAAsyncAppender(this.name, this.layout, this.hostname, this.appName, this.token, this.stackTrace, this.supportMdc);
+            return new LogDNAScheduledAsyncAppender(this.name, this.layout, this.hostname, this.appName, this.token, this.stackTrace, this.supportMdc, this.tags);
         }
-        return new LogDNAAppender(this.name, this.layout, this.hostname, this.appName, this.token, this.stackTrace, this.supportMdc);
+        return new LogDNASimpleAppender(this.name, this.layout, this.hostname, this.appName, this.token, this.stackTrace, this.supportMdc, this.tags);
     }
 }

@@ -2,7 +2,7 @@ package eu.mizerak.alemiz;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import com.squareup.okhttp.*;
+import okhttp3.*;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.Core;
 import org.apache.logging.log4j.core.Layout;
@@ -13,35 +13,40 @@ import org.apache.logging.log4j.core.impl.ThrowableProxy;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.io.UnsupportedEncodingException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 @Plugin(name = "LogDNAAppender", category = Core.CATEGORY_NAME, elementType = Appender.ELEMENT_TYPE)
-public class LogDNAAppender extends AbstractAppender {
+public class LogDNASimpleAppender extends AbstractAppender {
 
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
 
     protected final String hostname;
     protected final String appName;
     protected final String token;
+    protected final String tags;
     protected final boolean stackTrace;
     protected final boolean supportMdc;
 
-    protected final OkHttpClient client = new OkHttpClient();
-    protected String httpUrl = "https://logs.logdna.com/logs/ingest";
+    protected final OkHttpClient client;
 
-    protected LogDNAAppender(String name, Layout<? extends Serializable> layout, String hostname, String appName, String token, boolean stackTrace, boolean supportMdc) {
+    protected LogDNASimpleAppender(String name, Layout<? extends Serializable> layout, String hostname, String appName, String token, boolean stackTrace, boolean supportMdc, String[] tags) {
         super(name, null, layout, false, null);
         this.hostname = hostname;
         this.appName = appName;
         this.token = token;
         this.stackTrace = stackTrace;
         this.supportMdc = supportMdc;
-        this.client.setConnectTimeout(15, TimeUnit.SECONDS);
-        this.client.setReadTimeout(15, TimeUnit.SECONDS);
+        this.tags = tags == null ? null : String.join(",", tags);
+        this.client = this.initHttpClient();
+    }
+
+    protected OkHttpClient initHttpClient() {
+        OkHttpClient.Builder builder = new OkHttpClient.Builder();
+        builder.connectTimeout(15, TimeUnit.SECONDS);
+        builder.readTimeout(15, TimeUnit.SECONDS);
+        builder.retryOnConnectionFailure(true);
+        return builder.build();
     }
 
     @Override
@@ -54,7 +59,15 @@ public class LogDNAAppender extends AbstractAppender {
 
         JsonObject payload = new JsonObject();
         payload.add("lines", lines);
-        this.sendHtmlRequest(payload.toString());
+
+        Request request = this.createRequest(payload.toString());
+        try {
+            Response response = this.client.newCall(request).execute();
+            response.body().close();
+        } catch (IOException e) {
+            System.err.println("Failed to upload logs to LogDNA!");
+            e.printStackTrace();
+        }
     }
 
     protected JsonObject createLineEntry(String message, LogEvent logEvent) {
@@ -87,30 +100,24 @@ public class LogDNAAppender extends AbstractAppender {
         return line;
     }
 
-    protected void sendHtmlRequest(String payload) {
-        RequestBody body = RequestBody.create(JSON, payload);
+    protected Request createRequest(String payload) {
+        HttpUrl.Builder urlBuilder = new HttpUrl.Builder();
+        urlBuilder.scheme("https");
+        urlBuilder.host("logs.logdna.com");
+        urlBuilder.addPathSegment("logs");
+        urlBuilder.addPathSegment("ingest");
+        urlBuilder.addQueryParameter("hostname", this.hostname);
+        if (this.tags != null) {
+            urlBuilder.addQueryParameter("tags", this.tags);
+        }
+        urlBuilder.addQueryParameter("now", String.valueOf(System.currentTimeMillis()));
+
         Request.Builder builder = new Request.Builder();
-        builder.url(this.httpUrl+"?hostname="+encode(this.hostname)+"&now="+encode(String.valueOf(System.currentTimeMillis())));
+        builder.url(urlBuilder.build());
         builder.addHeader("apikey", this.token);
         builder.addHeader("User-Agent", "LogDna Log4j2 Appender");
         builder.addHeader("Accept", "application/json");
-        builder.post(body);
-
-        Request request = builder.build();
-        try {
-            Response response = this.client.newCall(request).execute();
-            response.body().close();
-        } catch (IOException e) {
-            System.err.println("Failed to upload logs to LogDNA!");
-            e.printStackTrace();
-        }
-    }
-
-    private String encode(String str){
-        try {
-            return URLEncoder.encode(str, StandardCharsets.UTF_8.name());
-        } catch (UnsupportedEncodingException e) {
-            return str;
-        }
+        builder.post(RequestBody.create(JSON, payload));
+        return builder.build();
     }
 }
