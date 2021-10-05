@@ -3,6 +3,7 @@ package eu.mizerak.alemiz;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import okhttp3.*;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.Core;
 import org.apache.logging.log4j.core.Layout;
@@ -27,10 +28,11 @@ public class LogDNASimpleAppender extends AbstractAppender {
     protected final String tags;
     protected final boolean stackTrace;
     protected final boolean supportMdc;
+    protected final Level minimalLogLevel;
 
     protected final OkHttpClient client;
 
-    protected LogDNASimpleAppender(String name, Layout<? extends Serializable> layout, String hostname, String appName, String token, boolean stackTrace, boolean supportMdc, String[] tags) {
+    protected LogDNASimpleAppender(String name, Layout<? extends Serializable> layout, String hostname, String appName, String token, boolean stackTrace, boolean supportMdc, String[] tags, Level level) {
         super(name, null, layout, false, null);
         this.hostname = hostname;
         this.appName = appName;
@@ -38,6 +40,7 @@ public class LogDNASimpleAppender extends AbstractAppender {
         this.stackTrace = stackTrace;
         this.supportMdc = supportMdc;
         this.tags = tags == null ? null : String.join(",", tags);
+        this.minimalLogLevel = level;
         this.client = this.initHttpClient();
     }
 
@@ -51,6 +54,8 @@ public class LogDNASimpleAppender extends AbstractAppender {
 
     @Override
     public void append(LogEvent logEvent) {
+        if(logEvent.getLevel().intLevel() <= this.minimalLogLevel.intLevel()) return;
+
         Layout<? extends Serializable> layout = this.getLayout();
         String message = new String(layout.toByteArray(logEvent));
 
@@ -92,7 +97,7 @@ public class LogDNASimpleAppender extends AbstractAppender {
         JsonObject meta = new JsonObject();
         meta.addProperty("logger", logEvent.getLoggerName());
         if (this.supportMdc && !logEvent.getContextData().isEmpty()) {
-            for (Map.Entry<String, String> entry: logEvent.getContextData().toMap().entrySet()) {
+            for (Map.Entry<String, String> entry : logEvent.getContextData().toMap().entrySet()) {
                 meta.addProperty(entry.getKey(), entry.getValue());
             }
         }
