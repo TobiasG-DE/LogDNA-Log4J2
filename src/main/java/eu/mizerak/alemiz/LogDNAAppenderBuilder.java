@@ -109,7 +109,7 @@ public class LogDNAAppenderBuilder implements Builder<LogDNASimpleAppender> {
     @Override
     public LogDNASimpleAppender build() {
         if (this.async) {
-            return new LogDNAScheduledAsyncAppender(this.name, this.layout, this.hostname, this.appName, this.token, this.stackTrace, this.supportMdc, this.tags);
+            return new LogDNAScheduledAsyncAppender(this.name, this.layout, this.hostname, this.appName, this.token, this.stackTrace, this.supportMdc, this.tags, this.minimalLogLevel);
         }
         return new LogDNASimpleAppender(this.name, this.layout, this.hostname, this.appName, this.token, this.stackTrace, this.supportMdc, this.tags, this.minimalLogLevel);
     }
