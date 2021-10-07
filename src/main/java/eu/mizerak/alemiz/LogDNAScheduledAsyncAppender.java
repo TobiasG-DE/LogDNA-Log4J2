@@ -3,6 +3,7 @@ package eu.mizerak.alemiz;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import okhttp3.*;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.Core;
 import org.apache.logging.log4j.core.Layout;
@@ -23,8 +24,8 @@ public class LogDNAScheduledAsyncAppender extends LogDNASimpleAppender {
 
     private final Queue<JsonObject> messagesQueue = new ConcurrentLinkedQueue<>();
 
-    protected LogDNAScheduledAsyncAppender(String name, Layout<? extends Serializable> layout, String hostname, String appName, String token, boolean stackTrace, boolean supportMdc, String[] tags) {
-        super(name, layout, hostname, appName, token, stackTrace, supportMdc, tags);
+    protected LogDNAScheduledAsyncAppender(String name, Layout<? extends Serializable> layout, String hostname, String appName, String token, boolean stackTrace, boolean supportMdc, String[] tags, Level minimalLogLevel) {
+        super(name, layout, hostname, appName, token, stackTrace, supportMdc, tags, minimalLogLevel);
         this.tickExecutor = Executors.newSingleThreadScheduledExecutor();
         this.tickFuture = this.tickExecutor.scheduleAtFixedRate(this::onTick, 0, 200, TimeUnit.MILLISECONDS);
     }
@@ -41,6 +42,7 @@ public class LogDNAScheduledAsyncAppender extends LogDNASimpleAppender {
 
     @Override
     public void append(LogEvent logEvent) {
+        if(logEvent.getLevel().intLevel() <= this.minimalLogLevel.intLevel()) return;
         Layout<? extends Serializable> layout = this.getLayout();
         String message = new String(layout.toByteArray(logEvent));
 

@@ -1,5 +1,6 @@
 package eu.mizerak.alemiz;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.Layout;
 import org.apache.logging.log4j.core.config.plugins.PluginBuilderAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginElement;
@@ -44,6 +45,9 @@ public class LogDNAAppenderBuilder implements Builder<LogDNASimpleAppender> {
     @PluginBuilderAttribute
     private boolean async = false;
 
+    @PluginBuilderAttribute
+    private Level minimalLogLevel = Level.INFO;
+
     public LogDNAAppenderBuilder() {
         try {
             this.hostname = InetAddress.getLocalHost().getHostName();
@@ -54,6 +58,11 @@ public class LogDNAAppenderBuilder implements Builder<LogDNASimpleAppender> {
 
     public LogDNAAppenderBuilder name(String name) {
         this.name = name;
+        return this;
+    }
+
+    public LogDNAAppenderBuilder minimalLogLevel(Level level){
+        this.minimalLogLevel = level;
         return this;
     }
 
@@ -100,8 +109,8 @@ public class LogDNAAppenderBuilder implements Builder<LogDNASimpleAppender> {
     @Override
     public LogDNASimpleAppender build() {
         if (this.async) {
-            return new LogDNAScheduledAsyncAppender(this.name, this.layout, this.hostname, this.appName, this.token, this.stackTrace, this.supportMdc, this.tags);
+            return new LogDNAScheduledAsyncAppender(this.name, this.layout, this.hostname, this.appName, this.token, this.stackTrace, this.supportMdc, this.tags, this.minimalLogLevel);
         }
-        return new LogDNASimpleAppender(this.name, this.layout, this.hostname, this.appName, this.token, this.stackTrace, this.supportMdc, this.tags);
+        return new LogDNASimpleAppender(this.name, this.layout, this.hostname, this.appName, this.token, this.stackTrace, this.supportMdc, this.tags, this.minimalLogLevel);
     }
 }
