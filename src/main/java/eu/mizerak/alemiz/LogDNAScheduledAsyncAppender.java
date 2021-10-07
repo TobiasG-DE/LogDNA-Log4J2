@@ -42,6 +42,7 @@ public class LogDNAScheduledAsyncAppender extends LogDNASimpleAppender {
 
     @Override
     public void append(LogEvent logEvent) {
+        if(logEvent.getLevel().intLevel() <= this.minimalLogLevel.intLevel()) return;
         Layout<? extends Serializable> layout = this.getLayout();
         String message = new String(layout.toByteArray(logEvent));
 
